@@ -1,9 +1,13 @@
-name: Build Android APK
+
+name: Build Release APK
 
 on:
   push:
     branches: [ main, master ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -25,11 +29,18 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Build Debug APK
-        run: gradle assembleDebug --no-daemon
+      - name: Build Release APK
+        run: gradle assembleRelease --no-daemon
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+      - name: Sign Release APK
+        run: |
+          keytool -genkeypair -v -keystore release.keystore -alias belzkey -keyalg RSA -keysize 2048 -validity 10000 -storepass belz1234 -keypass belz1234 -dname "CN=BelzMagic, O=BelzMagic, C=IR"
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name "apksigner" | sort -V | tail -n 1)
+          "$APKSIGNER" sign --ks release.keystore --ks-pass pass:belz1234 --key-pass pass:belz1234 --out BelzMagic-Release.apk app/build/outputs/apk/release/app-release-unsigned.apk
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
         with:
-          name: BelzMagic-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          tag_name: v1.0.${{ github.run_number }}
+          name: BelzMagic v1.0.${{ github.run_number }}
+          files: BelzMagic-Release.apk
